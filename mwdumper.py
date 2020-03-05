@@ -32,7 +32,7 @@ def fetch_image(filename, url, skip_cert_verification):
         f.write(response.content)
 
 
-def fetch_page(session, title, out_dir, head, skip_cert_verification):
+def fetch_page(session, title, out_dir, template, skip_cert_verification):
     page = session.get(action='parse', page=title, prop='text|images', format='json')['parse']
     wiki_html = page['text']['*']
     image_titles = ['File:%s' % i for i in page['images']]
@@ -57,15 +57,15 @@ def fetch_page(session, title, out_dir, head, skip_cert_verification):
     for span in soup.find_all('span'):
         if 'mw-editsection' in span.attrs.get('class', []):
             span.replaceWith('')
-    html = '<html>%s<body>%s</body></html>' % (head or '', soup)
+    html = template % {'title': title, 'content': soup}
     with open(os.path.join(out_dir, get_filename(title)), mode='w') as f:
         f.write(html)
 
 
-def main(wiki_host, api_path, out_dir, head, skip_cert_verification=False):
+def main(wiki_host, api_path, out_dir, template, skip_cert_verification=False):
     session = mwapi.Session(host=wiki_host, api_path=api_path, user_agent='mwdumper')
     for title in get_pages(session):
-        fetch_page(session, title, out_dir, head, skip_cert_verification)
+        fetch_page(session, title, out_dir, template, skip_cert_verification)
 
 
 if __name__ == '__main__':
@@ -73,7 +73,7 @@ if __name__ == '__main__':
     parser.add_argument('-w', '--wiki_host', required=True, help='The MediaWiki host to crawl, including the protocol (http://, https://)')
     parser.add_argument('-p', '--api_path', default='/api.php', help='The api path (for example "/api.php")')
     parser.add_argument('-o', '--out_dir', default='out/')
-    parser.add_argument('-d', '--head', help='File whose contents to include as the output HTML''s <head>...</head>')
+    parser.add_argument('-t', '--template', required=True, help='HTML template file.')
     parser.add_argument('-s', '--skip_cert_verification', default=False, action='store_true', help='Do not verify https certificates.')
     parser.add_argument('-f', '--force', default=False, action='store_true', help='Overwrite out_dir if it already exists.')
     args = parser.parse_args()
@@ -88,10 +88,7 @@ if __name__ == '__main__':
     os.mkdir(args.out_dir)
     os.mkdir(os.path.join(args.out_dir, 'img'))
 
-    if args.head:
-        with open(args.head) as f:
-            head = f.read()
-    else:
-        head = None
+    with open(args.template) as f:
+        template = f.read()
 
-    main(args.wiki_host, args.api_path, args.out_dir, head, args.skip_cert_verification)
+    main(args.wiki_host, args.api_path, args.out_dir, template, args.skip_cert_verification)
